@@ -46,7 +46,6 @@ with col2:
 
 # 4. 버튼 누르면 위험도 계산하기
 if st.button("위험도 예측", use_container_width=True):
-    # 입력된 12개 매핑 사전
     user_inputs = {
         'HR': hr,
         'O2Sat': o2sat,
@@ -62,32 +61,28 @@ if st.button("위험도 예측", use_container_width=True):
         'Age': age
     }
 
-    # 134개 피처를 담을 입력 데이터프레임 초기화 (기본 NaN)
+    # 134개 피처 데이터프레임 생성
     input_data = pd.DataFrame(np.nan, index=[0], columns=FEATURES)
 
-    # 134개 피처 자동 매핑 로직
     for col in FEATURES:
-        # 1) 12개 핵심 변수 및 관련 파생 피처 처리 (HR, HR_mean6, HR_max6, HR_min6, HR_d1 등)
-        matched_key = None
-        for key in user_inputs.keys():
-            if col == key or col.startswith(key + '_'):
-                matched_key = key
-                break
+        # 접두사(Prefix) 추출 (예: HR_mean6 -> HR)
+        prefix = col.split('_')[0]
         
-        if matched_key:
+        if prefix in user_inputs:
             if col.endswith('_missing'):
-                input_data.loc[0, col] = 0  # 입력된 값이므로 결측 플래그 = 0
+                input_data.loc[0, col] = 0.0  # 입력된 항목은 결측 없음(0)
             else:
-                input_data.loc[0, col] = float(user_inputs[matched_key])
+                input_data.loc[0, col] = float(user_inputs[prefix])  # 파생 피처 포함 입력값 채움
         else:
-            # 2) 사용자가 입력하지 않은 기타 피처 처리
             if col.endswith('_missing'):
-                input_data.loc[0, col] = 1  # 입력 안 된 측정치 = 1 (결측 처리)
+                input_data.loc[0, col] = 1.0  # 미입력 항목은 결측 있음(1)
+            else:
+                input_data.loc[0, col] = np.nan  # 미입력 측정값은 NaN
 
-    # 숫자형 타입 보장
+    # 숫자형 타입 변환
     input_data = input_data.astype(float)
 
-    # 위험도 예측 (확률 산출)
+    # 예측 실행
     risk_prob = model.predict_proba(input_data)[0][1]
     risk_percentage = risk_prob * 100
 
