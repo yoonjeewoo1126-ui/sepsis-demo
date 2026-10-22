@@ -3,14 +3,14 @@ import joblib
 import pandas as pd
 import numpy as np
 
-# 1. 페이지 설정 및 경고 문구
+# 1. 페이지 설정 및 주의사항 경고 문구 표시
 st.set_page_config(page_title="패혈증 위험도 예측 데모", page_icon="🏥")
 st.title("🏥 패혈증(Sepsis) 위험도 예측 데모")
 st.warning("⚠️ 본 시스템은 연구 및 데모용이며 실제 진단에 사용할 수 없습니다.")
 
 st.divider()
 
-# 2. 모델 및 피처 목록 가져오기
+# 2. 모델 및 피처 목록 로드
 @st.cache_resource
 def load_assets():
     model = joblib.load('lgbm_model.pkl')
@@ -23,7 +23,7 @@ except Exception as e:
     st.error(f"파일을 불러오는 중 오류가 발생했습니다: {e}")
     st.stop()
 
-# 3. 주요 수치 입력 12개
+# 3. 주요 수치 입력칸 (요구사항 12개 변수)
 st.subheader("📋 주요 수치 입력")
 
 col1, col2 = st.columns(2)
@@ -44,49 +44,40 @@ with col2:
     platelets = st.number_input("Platelets (혈소판)", value=250.0)
     age = st.number_input("Age (나이)", value=50, step=1)
 
-# 4. 버튼 누르면 위험도 계산하기
+# 4. 위험도 예측 실행
 if st.button("위험도 예측", use_container_width=True):
     user_inputs = {
-        'HR': hr,
-        'O2Sat': o2sat,
-        'Temp': temp,
-        'SBP': sbp,
-        'MAP': map_val,
-        'DBP': dbp,
-        'Resp': resp,
-        'Lactate': lactate,
-        'Creatinine': creatinine,
-        'WBC': wbc,
-        'Platelets': platelets,
-        'Age': age
+        'HR': hr, 'O2Sat': o2sat, 'Temp': temp, 'SBP': sbp, 'MAP': map_val,
+        'DBP': dbp, 'Resp': resp, 'Lactate': lactate, 'Creatinine': creatinine,
+        'WBC': wbc, 'Platelets': platelets, 'Age': age
     }
 
-    # 134개 피처 데이터프레임 생성
-    input_data = pd.DataFrame(np.nan, index=[0], columns=FEATURES)
+    # 요구사항: 134개 피처를 정해진 FEATURES 순서대로 생성 (미측정 변수 기본 0)
+    input_data = pd.DataFrame(0.0, index=[0], columns=FEATURES)
 
     for col in FEATURES:
-        # 접두사(Prefix) 추출 (예: HR_mean6 -> HR)
         prefix = col.split('_')[0]
         
+        # 입력한 12개 주요 변수 관련 피처 처리
         if prefix in user_inputs:
             if col.endswith('_missing'):
-                input_data.loc[0, col] = 0.0  # 입력된 항목은 결측 없음(0)
+                input_data.loc[0, col] = 0.0  # 측정한 피처이므로 missing = 0
             else:
-                input_data.loc[0, col] = float(user_inputs[prefix])  # 파생 피처 포함 입력값 채움
+                input_data.loc[0, col] = float(user_inputs[prefix])
+        # 미입력 피처 처리 (요구사항: 미측정 피처는 0으로 채우기 / missing 플래그는 1)
         else:
             if col.endswith('_missing'):
-                input_data.loc[0, col] = 1.0  # 미입력 항목은 결측 있음(1)
+                input_data.loc[0, col] = 1.0  # 미측정 상태 = 1
             else:
-                input_data.loc[0, col] = np.nan  # 미입력 측정값은 NaN
+                input_data.loc[0, col] = 0.0  # 미측정 피처 수치 = 0
 
-    # 숫자형 타입 변환
     input_data = input_data.astype(float)
 
-    # 예측 실행
+    # 모델 예측 (고위험일 확률 계산)
     risk_prob = model.predict_proba(input_data)[0][1]
     risk_percentage = risk_prob * 100
 
-    # 결과 및 색상 출력
+    # 결과 및 위험도별 색상 출력
     st.subheader("예측 결과")
     if risk_percentage >= 70:
         st.error(f"🚨 위험도: {risk_percentage:.1f}% (고위험)")
