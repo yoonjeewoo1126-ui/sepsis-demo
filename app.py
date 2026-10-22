@@ -3,14 +3,12 @@ import joblib
 import pandas as pd
 import numpy as np
 
-# 1. 연구용 경고 문구 표시
 st.set_page_config(page_title="패혈증 위험도 예측 데모", page_icon="🏥")
 st.title("🏥 패혈증(Sepsis) 위험도 예측 데모")
 st.warning("⚠️ 본 시스템은 연구 및 데모용이며 실제 진단에 사용할 수 없습니다.")
 
 st.divider()
 
-# 2. 모델 및 피처 목록 가져오기
 @st.cache_resource
 def load_assets():
     model = joblib.load('lgbm_model.pkl')
@@ -23,7 +21,11 @@ except Exception as e:
     st.error(f"파일을 불러오는 중 오류가 발생했습니다: {e}")
     st.stop()
 
-# 3. 주요 수치 입력칸 12개 만들기
+# --- 디버깅용: features.pkl 정보 확인 ---
+with st.expander("🔍 모델 피처(FEATURES) 정보 확인하기"):
+    st.write(f"총 피처 개수: {len(FEATURES)}")
+    st.write("피처 목록:", FEATURES)
+
 st.subheader("📋 주요 수치 입력")
 
 col1, col2 = st.columns(2)
@@ -44,26 +46,35 @@ with col2:
     platelets = st.number_input("Platelets", value=250.0)
     age = st.number_input("Age", value=50, step=1)
 
-# 4. 버튼 누르면 위험도 계산하기
 if st.button("위험도 예측", use_container_width=True):
-    # 입력한 수치 정리
+    # 입력 수치 사전 구성
     input_dict = {
         'HR': hr, 'O2Sat': o2sat, 'Temp': temp, 'SBP': sbp, 'MAP': map_val,
         'DBP': dbp, 'Resp': resp, 'Lactate': lactate, 'Creatinine': creatinine,
         'WBC': wbc, 'Platelets': platelets, 'Age': age
     }
 
-    # 입력 데이터를 DataFrame으로 변환 후 FEATURES 순서에 맞춰 정렬
+    # 모든 피처를 기본 0 또는 NaN 대신 입력값 매핑 후 missing 처리
     input_df = pd.DataFrame([input_dict])
     
-    # FEATURES에 있는 컬럼만 정확히 순서대로 추출 (부족한 컬럼이 있다면 np.nan 처리)
-    input_data = input_df.reindex(columns=FEATURES, fill_value=np.nan)
+    # FEATURES에 정의된 컬럼 구조 생성
+    input_data = pd.DataFrame(columns=FEATURES)
+    
+    # 매핑 가능한 입력 데이터 채우기
+    for col in FEATURES:
+        if col in input_dict:
+            input_data.loc[0, col] = input_dict[col]
+        else:
+            # 입력값에 없는 피처는 NaN 처리 (LightGBM 결측치 자동 처리 기능 활용)
+            input_data.loc[0, col] = np.nan
+
+    # 데이터 타입 숫자형으로 명시적 변환
+    input_data = input_data.astype(float)
 
     # 위험도 예측
     risk_prob = model.predict_proba(input_data)[0][1]
     risk_percentage = risk_prob * 100
 
-    # 결과 및 색상 출력
     st.subheader("예측 결과")
     if risk_percentage >= 70:
         st.error(f"🚨 위험도: {risk_percentage:.1f}% (고위험)")
