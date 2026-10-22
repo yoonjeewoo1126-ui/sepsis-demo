@@ -53,16 +53,11 @@ if st.button("위험도 예측", use_container_width=True):
         'WBC': wbc, 'Platelets': platelets, 'Age': age
     }
 
-    # 미측정 피처는 0으로 채우기
-    input_data = pd.DataFrame(0, index=[0], columns=FEATURES)
-
-    # 입력한 수치만 해당 칸에 넣기
-    for col, val in input_dict.items():
-        if col in input_data.columns:
-            input_data[col] = val
-
-    # FEATURES 목록 순서 그대로 맞추기
-    input_data = input_data[FEATURES]
+    # 입력 데이터를 DataFrame으로 변환 후 FEATURES 순서에 맞춰 정렬
+    input_df = pd.DataFrame([input_dict])
+    
+    # FEATURES에 있는 컬럼만 정확히 순서대로 추출 (부족한 컬럼이 있다면 np.nan 처리)
+    input_data = input_df.reindex(columns=FEATURES, fill_value=np.nan)
 
     # 위험도 예측
     risk_prob = model.predict_proba(input_data)[0][1]
