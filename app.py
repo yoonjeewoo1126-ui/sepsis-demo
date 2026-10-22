@@ -21,7 +21,6 @@ except Exception as e:
     st.error(f"파일을 불러오는 중 오류가 발생했습니다: {e}")
     st.stop()
 
-# --- 디버깅용: features.pkl 정보 확인 ---
 with st.expander("🔍 모델 피처(FEATURES) 정보 확인하기"):
     st.write(f"총 피처 개수: {len(FEATURES)}")
     st.write("피처 목록:", FEATURES)
@@ -47,31 +46,31 @@ with col2:
     age = st.number_input("Age", value=50, step=1)
 
 if st.button("위험도 예측", use_container_width=True):
-    # 입력 수치 사전 구성
     input_dict = {
         'HR': hr, 'O2Sat': o2sat, 'Temp': temp, 'SBP': sbp, 'MAP': map_val,
         'DBP': dbp, 'Resp': resp, 'Lactate': lactate, 'Creatinine': creatinine,
         'WBC': wbc, 'Platelets': platelets, 'Age': age
     }
 
-    # 모든 피처를 기본 0 또는 NaN 대신 입력값 매핑 후 missing 처리
-    input_df = pd.DataFrame([input_dict])
-    
-    # FEATURES에 정의된 컬럼 구조 생성
-    input_data = pd.DataFrame(columns=FEATURES)
-    
-    # 매핑 가능한 입력 데이터 채우기
-    for col in FEATURES:
-        if col in input_dict:
-            input_data.loc[0, col] = input_dict[col]
-        else:
-            # 입력값에 없는 피처는 NaN 처리 (LightGBM 결측치 자동 처리 기능 활용)
-            input_data.loc[0, col] = np.nan
+    # 134개 피처 데이터프레임 생성 (기본값 NaN)
+    input_data = pd.DataFrame(index=[0], columns=FEATURES)
 
-    # 데이터 타입 숫자형으로 명시적 변환
+    # 134개 피처 전체를 순회하면서, 입력 변수명이 포함되어 있으면 입력값을 할당
+    for f in FEATURES:
+        matched = False
+        for k, v in input_dict.items():
+            # 완전 일치하거나 피처 이름에 입력 키워드가 포함된 경우 (예: HR_mean 등)
+            if k == f or k in f:
+                input_data.loc[0, f] = float(v)
+                matched = True
+                break
+        if not matched:
+            input_data.loc[0, f] = np.nan
+
+    # 숫자형 데이터로 변환
     input_data = input_data.astype(float)
 
-    # 위험도 예측
+    # 예측 실행
     risk_prob = model.predict_proba(input_data)[0][1]
     risk_percentage = risk_prob * 100
 
