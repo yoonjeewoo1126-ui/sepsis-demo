@@ -3,12 +3,14 @@ import joblib
 import pandas as pd
 import numpy as np
 
+# 1. 페이지 설정 및 주의사항 경고 문구
 st.set_page_config(page_title="패혈증 위험도 예측 데모", page_icon="🏥")
 st.title("🏥 패혈증(Sepsis) 위험도 예측 데모")
 st.warning("⚠️ 본 시스템은 연구 및 데모용이며 실제 진단에 사용할 수 없습니다.")
 
 st.divider()
 
+# 2. 모델 및 피처 목록 로드
 @st.cache_resource
 def load_assets():
     model = joblib.load('lgbm_model.pkl')
@@ -21,6 +23,7 @@ except Exception as e:
     st.error(f"파일을 불러오는 중 오류가 발생했습니다: {e}")
     st.stop()
 
+# 3. 주요 수치 입력칸 (12개)
 st.subheader("📋 주요 수치 입력")
 
 col1, col2 = st.columns(2)
@@ -41,6 +44,7 @@ with col2:
     platelets = st.number_input("Platelets (혈소판)", value=250.0)
     age = st.number_input("Age (나이)", value=50, step=1)
 
+# 4. 위험도 예측 실행
 if st.button("위험도 예측", use_container_width=True):
     user_inputs = {
         'HR': hr, 'O2Sat': o2sat, 'Temp': temp, 'SBP': sbp, 'MAP': map_val,
@@ -48,32 +52,29 @@ if st.button("위험도 예측", use_container_width=True):
         'WBC': wbc, 'Platelets': platelets, 'Age': age
     }
 
+    # 134개 피처를 0으로 초기화
     input_data = pd.DataFrame(0.0, index=[0], columns=FEATURES)
 
     for col in FEATURES:
-        # 단일 수치(HR, Temp 등) 및 평균/최대/최소 수치에만 값 할당
         prefix = col.split('_')[0]
-        suffix = col.replace(prefix + '_', '') if '_' in col else ''
-
+        
+        # 12개 입력 변수에 해당하는 피처 처리
         if prefix in user_inputs:
             if col.endswith('_missing'):
-                input_data.loc[0, col] = 0.0
-            elif suffix in ['', 'mean6', 'max6', 'min6']:
-                input_data.loc[0, col] = float(user_inputs[prefix])
+                input_data.loc[0, col] = 0.0  # 측정한 값은 missing = 0
             else:
-                # _d1, _std6 등 파생 변수는 0 처리
-                input_data.loc[0, col] = 0.0
+                input_data.loc[0, col] = float(user_inputs[prefix])
+        # 입력하지 않은 변수 처리
         else:
             if col.endswith('_missing'):
-                input_data.loc[0, col] = 1.0
+                input_data.loc[0, col] = 1.0  # 미측정 상태 = 1
             else:
-                input_data.loc[0, col] = 0.0
+                input_data.loc[0, col] = 0.0  # 미측정 피처 = 0
 
     input_data = input_data.astype(float)
 
-    # 확률 계산
-    probs = model.predict_proba(input_data)[0]
-    risk_prob = probs[1]
+    # 모델 원시 확률 계산
+    risk_prob = model.predict_proba(input_data)[0][1]
     risk_percentage = risk_prob * 100
 
     st.subheader("예측 결과")
